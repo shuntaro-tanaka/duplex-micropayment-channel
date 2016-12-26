@@ -1,0 +1,19 @@
+bitcoin:
+  dust_limit: 600
+  network: 'testnet'
+  provier: 'bitcoind'
+  cache: 'tmp/cache.db'
+  rpc:
+    user: 'xxx'
+    password: 'xxx'
+    schema: 'http'
+    port: '18332'
+    host: 'localhost'
+    timeout: 90000000
+    open_timeout: 90000000
+#  min_confirmation: 0
+
+google:
+  urlshorten:
+    api_key: 'Google短縮URLのAPIキー'
+    server: 'Google短縮URLに渡すサーバIP'
