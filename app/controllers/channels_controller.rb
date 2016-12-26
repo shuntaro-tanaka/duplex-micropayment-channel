@@ -2,11 +2,99 @@ class ChannelsController < ApplicationController
 
   require 'openassets'
   include Bitcoin::Util
+  include Concerns::OpenAssetsWrapper
 
-#  before_filter :authenticate_user!
-#  before_action :set_wallet, only: [:show, :edit, :update, :destroy]
+=begin
+
+require 'openassets'
+
+api = OpenAssets::Api.new({:network => 'testnet',
+                           :provider => 'bitcoind', :cache => 'testnet.db',
+                           :dust_limit => 600, :default_fees => 10000, :min_confirmation => 1, :max_confirmation => 9999999,
+                           :rpc => {:user => 'xxx', :password => 'xxx', :schema => 'http', :port => 28332, :host => 'localhost', :timeout => 60, :open_timeout => 60}})
+
+=end
 
   def index
+
+    #1 鍵の準備
+    alice_addr  = api.provider.getnewaddress('Alice') # motEpRaRrtJ7UCL4HwWDXhBfNJYUJYGFUk
+    bob_addr    = api.provider.getnewaddress('Bob')   # mmnfjAf2Zq9D5JuChc9tgDBn54VPTdsKx6
+
+    alice_key   = Bitcoin::Key.from_base58(api.provider.dumpprivkey(alice_addr))
+    bob_key     = Bitcoin::Key.from_base58(api.provider.dumpprivkey(bob_addr))
+
+    alice_witness_addr  = api.provider.addwitnessaddress(alice_key.addr)  # "2NAPcrgmTcZDgBBGgY8aU1unhRWYeKFVEwL"
+    bob_witness_addr    = api.provider.addwitnessaddress(bob_key.addr)    # "2NCrYCt9xz3wbq4sJxseHH9NzYtRGjmjJua"
+
+
+
+    #2 オープニングトランザクションの作成
+
+    #2-1-1 ビットコインの準備 P2WPKH nested in BIP16 P2SH に送付
+    tx_fee          = 10000
+    deposit_amount  = 100000000
+    bitcoin_pool_addr      = "mtBAeSAK8JbMsMzf7hUgrEbh1B2pSU23gV"
+
+    api.send_bitcoin(bitcoin_pool_addr, deposit_amount + tx_fee, alice_witness_addr, tx_fee)
+    api.send_bitcoin(bitcoin_pool_addr, deposit_amount + tx_fee, bob_witness_addr, tx_fee)
+
+    # alice
+    # hash    c5dd144b13dec4d1c86416e409b8bb9ffb6e6f165eb9f9c8cc854eac00fae38c
+    # payload 010000000100036d2225e412a6fffa02189c7a9d6a4509ccb92c0396cf5ec29acbc18f9e1d0000000048473044022009695c906d466aad9090f8304fe74025127b77b923614e18eb38df4f85a5b91c02202441a99c217705e6de99654c4a0fe3f41361482d4422eb39cdda2c5d00fece3f01ffffffff02e0c20f24010000001976a9148adba05a0e817b8f677850f99aef47947e82bd7688ac1008f6050000000017a914bc108e5cedb4a998e5c67aa0f1b58ee75b1fe6408700000000
+
+    # bob
+    # hash    daa9226592033415cde7ea4c6277a4690285082ad66d6b959eb8350c8e9dc43a
+    # bob     01000000010286d1cc02998ce04678bca1afa05f2503304b340d453128d4b9f2e9c5e8f6b50000000049483045022100b817da35bc657ff1ae155535231b738444fab48ff8ffdd473e26764a33aa2f190220112eb4b0ef5d9afe41b16662b6325bd27c5e0be6273ba51dcbec2b4412f3b87f01ffffffff02e0c20f24010000001976a9148adba05a0e817b8f677850f99aef47947e82bd7688ac1008f6050000000017a914d71827d07c462d4a5c11ed645d1cf292fbdf19628700000000
+
+    #2-1-2 送られたものを自分に送り返す P2WPKH nested in BIP16 P2SH 宛に。（テスト）
+    api.send_bitcoin(alice_witness_addr, deposit_amount, alice_witness_addr, tx_fee)
+
+    # hash    34c0a3469950750983be5f263bb50bdc6523bc2d3ec88c6ee81f77cf63f88f68
+    # payload 010000000001018ce3fa00ac4e85ccc8f9b95e166f6efb9fbbb809e41664c8d1c4de134b14ddc501000000171600145bc788e20d8e9b1b3fef63a3e6d7fccca8474ea3ffffffff0100e1f5050000000017a914bc108e5cedb4a998e5c67aa0f1b58ee75b1fe64087024730440220707067db07f5b8c707549988e430fdd4c706dd24da13ce9ef22b51b9b93046c90220212d969b498a773bb945364f55855b3c7cd1abac2c506f0246a8246f777868610121035ea91513326af241c1dff2e7c18fd46da52928000ada53a076b4e7a744d0d6e800000000
+
+
+    #2-2 P2WSH nested in BIP16 P2SH に送付
+    p2sh_script, redeem_script =  Bitcoin::Script.to_p2sh_multisig_script(2, alice_key.pub, bob_key.pub)
+    multisig_addr = Bitcoin::Script.new(p2sh_script).get_p2sh_address
+
+    opening_tx = api.send_bitcoin(alice_key.addr, deposit_amount, multisig_addr, tx_fee, 'unsigned')
+
+
+    #2-2-1 P2WSHのマルチシグの作成
+    # generate p2wsh multisig output script for given +args+.
+    # returns the p2wsh output script, and the witness program needed to spend it.
+    # see #to_witness_multisig_script for the witness program, and #to_p2sh_script for the p2sh script.
+    def self.to_p2wsh_multisig_script(*args)
+      witness_program = to_witness_multisig_script(*args)
+      p2wsh_script = to_p2wsh_script(Bitcoin.hash160(witness_program.hth))
+      return p2wsh_script, witness_program
+    end
+
+    # generate witness multisig output script for given +pubkeys+, expecting +m+ signatures.
+    # returns a raw binary script of the form:
+    #  <m> <pubkey> [<pubkey> ...] <n_pubkeys> OP_CHECKMULTISIG
+    def self.to_witness_multisig_script(m, *pubkeys)
+      raise "invalid m-of-n number" unless [m, pubkeys.size].all?{|i| (0..20).include?(i) }
+      raise "invalid m-of-n number" if pubkeys.size < m
+      pubs = pubkeys.map{|pk| pack_pushdata([pk].pack("H*")) }
+
+      m = m > 16 ?              pack_pushdata([m].pack("C"))              : [80 + m.to_i].pack("C")
+      n = pubkeys.size > 16 ?   pack_pushdata([pubkeys.size].pack("C"))   : [80 + pubs.size].pack("C")
+
+      [ m, *pubs, n, [OP_CHECKMULTISIG].pack("C")].join
+    end
+
+    # generate p2wsh output script for given +p2wsh+ hash160. returns a raw binary script of the form:
+    #  OP_HASH160 <p2wsh> OP_EQUAL
+    def self.to_p2wsh_script(p2wsh)
+      return nil  unless p2wsh
+      # HASH160  length  hash  EQUAL
+      [ ["a9",   "14",   p2wsh, "87"].join ].pack("H*")
+    end
+
+
+
 
     #1 鍵の準備
     bitcoin_pool_addr      = "mtBAeSAK8JbMsMzf7hUgrEbh1B2pSU23gV"
@@ -110,18 +198,5 @@ class ChannelsController < ApplicationController
     # "a7e6684476157df313c9f10f8a06507683ca501b17718e52803f1cca49f27277"
 
   end
-
-  def oa_api
-    OpenAssets::Api.new(oa_config[:bitcoin])
-  end
-
-  def oa_config
-    YAML.load_file(config_path).deep_symbolize_keys
-  end
-
-  def config_path
-    "#{Rails.root}/config/openassets.yml"
-  end
-
 
 end
