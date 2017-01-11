@@ -14,19 +14,23 @@
 ActiveRecord::Schema.define(version: 20161214065201) do
 
   create_table "channels", force: :cascade do |t|
-    t.string   "key_id",            null: false
-    t.datetime "created_at",        null: false
-    t.datetime "updated_at",        null: false
-    t.string   "opening_tx_id",     null: false
-    t.string   "refund_tx_id",      null: false
-    t.string   "commitment_tx_id",  null: false
+    t.string   "channel_id",       null: false
+    t.string   "key_id",           null: false
+    t.string   "pubkey",           null: false
+    t.string   "privkey",          null: false
+    t.datetime "created_at",       null: false
+    t.datetime "updated_at",       null: false
+    t.string   "opening_tx_id",    null: false
+    t.string   "refund_tx_id",     null: false
+    t.string   "commitment_tx_id", null: false
   end
 
   create_table "keys", force: :cascade do |t|
-    t.string   "pubkey",            null: false
-    t.string   "privkey",           null: false
-    t.datetime "created_at",        null: false
-    t.datetime "updated_at",        null: false
+    t.string   "key_id",    null: false
+    t.string   "pubkey",    null: false
+    t.string   "privkey",   null: false
+    t.datetime "create_at", null: false
+    t.datetime "update_at"
   end
 
 end

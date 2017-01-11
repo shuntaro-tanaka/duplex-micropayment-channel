@@ -4,124 +4,86 @@ class ChannelsController < ApplicationController
   include Bitcoin::Util
   include Concerns::OpenAssetsWrapper
 
-=begin
-
-require 'openassets'
-
-api = OpenAssets::Api.new({:network => 'testnet',
-                           :provider => 'bitcoind', :cache => 'testnet.db',
-                           :dust_limit => 600, :default_fees => 10000, :min_confirmation => 1, :max_confirmation => 9999999,
-                           :rpc => {:user => 'xxx', :password => 'xxx', :schema => 'http', :port => 28332, :host => 'localhost', :timeout => 60, :open_timeout => 60}})
-
-=end
-
   def index
 
     #1 鍵の準備
-    alice_addr  = api.provider.getnewaddress('Alice') # motEpRaRrtJ7UCL4HwWDXhBfNJYUJYGFUk
-    bob_addr    = api.provider.getnewaddress('Bob')   # mmnfjAf2Zq9D5JuChc9tgDBn54VPTdsKx6
 
-    alice_key   = Bitcoin::Key.from_base58(api.provider.dumpprivkey(alice_addr))
-    bob_key     = Bitcoin::Key.from_base58(api.provider.dumpprivkey(bob_addr))
+    alice_addr  = oa_api.provider.getnewaddress('Alice')
+    bob_addr    = oa_api.provider.getnewaddress('Bob')
 
-    alice_witness_addr  = api.provider.addwitnessaddress(alice_key.addr)  # "2NAPcrgmTcZDgBBGgY8aU1unhRWYeKFVEwL"
-    bob_witness_addr    = api.provider.addwitnessaddress(bob_key.addr)    # "2NCrYCt9xz3wbq4sJxseHH9NzYtRGjmjJua"
+    alice_key   = Bitcoin::Key.from_base58(oa_api.provider.dumpprivkey(alice_addr))
+    bob_key     = Bitcoin::Key.from_base58(oa_api.provider.dumpprivkey(bob_addr))
 
+    alice_20bytes_hash = hash160(alice_key.pub)
+    bob_20bytes_hash = hash160(bob_key.pub)
+    # alice_witness_addr  = oa_api.provider.addwitnessaddress(alice_key.addr)
+    # bob_witness_addr    = oa_api.provider.addwitnessaddress(bob_key.addr)
 
+    tx_fee          = 100000
+    deposit_amount  = 2499900000
 
-    #2 オープニングトランザクションの作成
-
-    #2-1-1 ビットコインの準備 P2WPKH nested in BIP16 P2SH に送付
-    tx_fee          = 10000
-    deposit_amount  = 100000000
-    bitcoin_pool_addr      = "mtBAeSAK8JbMsMzf7hUgrEbh1B2pSU23gV"
-
-    api.send_bitcoin(bitcoin_pool_addr, deposit_amount + tx_fee, alice_witness_addr, tx_fee)
-    api.send_bitcoin(bitcoin_pool_addr, deposit_amount + tx_fee, bob_witness_addr, tx_fee)
-
-    # alice
-    # hash    c5dd144b13dec4d1c86416e409b8bb9ffb6e6f165eb9f9c8cc854eac00fae38c
-    # payload 010000000100036d2225e412a6fffa02189c7a9d6a4509ccb92c0396cf5ec29acbc18f9e1d0000000048473044022009695c906d466aad9090f8304fe74025127b77b923614e18eb38df4f85a5b91c02202441a99c217705e6de99654c4a0fe3f41361482d4422eb39cdda2c5d00fece3f01ffffffff02e0c20f24010000001976a9148adba05a0e817b8f677850f99aef47947e82bd7688ac1008f6050000000017a914bc108e5cedb4a998e5c67aa0f1b58ee75b1fe6408700000000
-
-    # bob
-    # hash    daa9226592033415cde7ea4c6277a4690285082ad66d6b959eb8350c8e9dc43a
-    # bob     01000000010286d1cc02998ce04678bca1afa05f2503304b340d453128d4b9f2e9c5e8f6b50000000049483045022100b817da35bc657ff1ae155535231b738444fab48ff8ffdd473e26764a33aa2f190220112eb4b0ef5d9afe41b16662b6325bd27c5e0be6273ba51dcbec2b4412f3b87f01ffffffff02e0c20f24010000001976a9148adba05a0e817b8f677850f99aef47947e82bd7688ac1008f6050000000017a914d71827d07c462d4a5c11ed645d1cf292fbdf19628700000000
-
-    #2-1-2 送られたものを自分に送り返す P2WPKH nested in BIP16 P2SH 宛に。（テスト）
-    api.send_bitcoin(alice_witness_addr, deposit_amount, alice_witness_addr, tx_fee)
-
-    # hash    34c0a3469950750983be5f263bb50bdc6523bc2d3ec88c6ee81f77cf63f88f68
-    # payload 010000000001018ce3fa00ac4e85ccc8f9b95e166f6efb9fbbb809e41664c8d1c4de134b14ddc501000000171600145bc788e20d8e9b1b3fef63a3e6d7fccca8474ea3ffffffff0100e1f5050000000017a914bc108e5cedb4a998e5c67aa0f1b58ee75b1fe64087024730440220707067db07f5b8c707549988e430fdd4c706dd24da13ce9ef22b51b9b93046c90220212d969b498a773bb945364f55855b3c7cd1abac2c506f0246a8246f777868610121035ea91513326af241c1dff2e7c18fd46da52928000ada53a076b4e7a744d0d6e800000000
-
-
-    #2-2 P2WSH nested in BIP16 P2SH に送付
-    p2sh_script, redeem_script =  Bitcoin::Script.to_p2sh_multisig_script(2, alice_key.pub, bob_key.pub)
-    multisig_addr = Bitcoin::Script.new(p2sh_script).get_p2sh_address
-
-    opening_tx = api.send_bitcoin(alice_key.addr, deposit_amount, multisig_addr, tx_fee, 'unsigned')
-
-
-    #2-2-1 P2WSHのマルチシグの作成
-    # generate p2wsh multisig output script for given +args+.
-    # returns the p2wsh output script, and the witness program needed to spend it.
-    # see #to_witness_multisig_script for the witness program, and #to_p2sh_script for the p2sh script.
-    def self.to_p2wsh_multisig_script(*args)
-      witness_program = to_witness_multisig_script(*args)
-      p2wsh_script = to_p2wsh_script(Bitcoin.hash160(witness_program.hth))
-      return p2wsh_script, witness_program
-    end
-
-    # generate witness multisig output script for given +pubkeys+, expecting +m+ signatures.
-    # returns a raw binary script of the form:
-    #  <m> <pubkey> [<pubkey> ...] <n_pubkeys> OP_CHECKMULTISIG
-    def self.to_witness_multisig_script(m, *pubkeys)
-      raise "invalid m-of-n number" unless [m, pubkeys.size].all?{|i| (0..20).include?(i) }
-      raise "invalid m-of-n number" if pubkeys.size < m
-      pubs = pubkeys.map{|pk| pack_pushdata([pk].pack("H*")) }
-
-      m = m > 16 ?              pack_pushdata([m].pack("C"))              : [80 + m.to_i].pack("C")
-      n = pubkeys.size > 16 ?   pack_pushdata([pubkeys.size].pack("C"))   : [80 + pubs.size].pack("C")
-
-      [ m, *pubs, n, [OP_CHECKMULTISIG].pack("C")].join
-    end
-
-    # generate p2wsh output script for given +p2wsh+ hash160. returns a raw binary script of the form:
-    #  OP_HASH160 <p2wsh> OP_EQUAL
-    def self.to_p2wsh_script(p2wsh)
-      return nil  unless p2wsh
-      # HASH160  length  hash  EQUAL
-      [ ["a9",   "14",   p2wsh, "87"].join ].pack("H*")
-    end
-
-
-
-
-    #1 鍵の準備
-    bitcoin_pool_addr      = "mtBAeSAK8JbMsMzf7hUgrEbh1B2pSU23gV"
-
-    client_key          = Bitcoin::Key.from_base58("cQbF9YdmXFJnuukUPBee2g8pHcfw1njociCi6NToLMgSJHUhSW2v")
-    server_key          = Bitcoin::Key.from_base58("cQsAdCCqEhAMCTqcnmenZgR3CBw1GgQwJKQdiLEv8cUqjWZw1WsY")
-
-    # client_address  = "n1afn4z8MfaVvr591KmJPiXifz1C7LUYTN"
-    # server_address  = "mojsVMcNBJ53HuLHrg2mF7prRAgqboNEY4"
+    #コインベース
+    input_tx_hash_alice  = "eaebd066a1354039022a21c476cb0dbc131d0dce20a759c35dc9433097d371ff"
+    input_tx_hash_bob = "a8922146407b9a7b940db52502843b3d59499bd959830e42dd5a5b8a3c0f51ff"
+    #input_tx_hash_alice = "579e6e73bbb0f3e8cb7679f08814a29a1aaee9ca63e921187c538875fa0bd8fe"
+    #input_tx_hash_bob = "b92d39f50788e099659b3902563d0e70110abc0b8fe41adc2695437477bc5dfe"
+    #input_tx_hash_alice = "2a1bf38dd6ce69d77e7f5f01659a60fb3d754d0e218ca883e419946a2cdb43fb"
+    #input_tx_hash_bob = "f2a20a35d074244bf6412028ab0cfaff30ff5ef4268f04d10f708bbc821a65f5"
 
     #2 オープニングトランザクションの作成
 
-    tx_fee          = 10000
-    deposit_amount  = 100000000
-    api.send_bitcoin(bitcoin_pool_addr, deposit_amount + tx_fee, client_key.addr, tx_fee)
+    alice_tx = segwit_send_bitcoin(input_tx_hash_alice, deposit_amount, alice_20bytes_hash, mode = 'broadcast', segwit = false)
+    bob_tx   = segwit_send_bitcoin(input_tx_hash_bob, deposit_amount, bob_20bytes_hash, mode = 'broadcast', segwit = false)
 
-    # from, amount, to, tx_fee を引数に、send_bitcoin
-    p2sh_script, redeem_script =  Bitcoin::Script.to_p2sh_multisig_script(2, client_key.pub, server_key.pub)
-    multisig_addr = Bitcoin::Script.new(p2sh_script).get_p2sh_address # "2MyDTig8RbZhQay7RYTgtxfa7Y6UfTGYQPz"
-    opening_tx = api.send_bitcoin(client_key.addr, deposit_amount, multisig_addr, tx_fee, 'signed')
-    # opening_tx.hash = "63a08b12a1f7099b30d25eaa433cbb1c707ca0a046a62a9fba8d0b79cf2c6793"
+    oa_api.provider.generate(1)
 
-    #3 クライアント側 払い戻しトランザクションの作成、署名なし
+    #テスト 自分に送り返す。
+    # resend_amount   = deposit_amount - 100000
+    # alice_resend_tx = segwit_send_bitcoin(alice_tx.hash, resend_amount, alice_20bytes_hash, mode = 'broadcast', segwit = true)
+
+    #2-2-2 オープニングトランザクションの作成
+    # input に alice, bob のトランザクションを指定
+    alice_tx_in = Bitcoin::Protocol::TxIn.from_hex_hash(alice_tx.hash, tx_vout = 0)
+    bob_tx_in   = Bitcoin::Protocol::TxIn.from_hex_hash(bob_tx.hash, tx_vout = 0)
+
+    # output に p2wsh 宛の outputを指定
+    p2wsh_script, witness_program =  to_p2wsh_multisig_script(2, alice_key.pub, bob_key.pub)
+    opening_tx_out = Bitcoin::Protocol::TxOut.new(deposit_amount * 2 - tx_fee, p2wsh_script)
+
+    # tx に投入
+    opening_tx  = Bitcoin::Protocol::Tx.new
+    opening_tx.add_in(alice_tx_in)
+    opening_tx.add_in(bob_tx_in)
+    opening_tx.add_out(opening_tx_out)
+
+    p '------- opening tx ------- '
+    p opening_tx
+    p opening_tx.hash
+    p opening_tx.to_payload
+    p opening_tx.to_payload.bth
+    p '------- opening tx ------- '
+
+    # tx に署名
+    segwit_process_transaction(opening_tx, mode = 'broadcast', segwit = true)
+
+    p stop
+
+    # 01000000000102295dafd9d3e20a0bbc06a3f1d172961c83924df409854639fea37c0a1f934d730000000000ffffffff7d6d0920bad12db99e457b0e25a26fb5cf5ceef3c439aa4fdbfb3296aee403690000000000ffffffff01205e012a01000000220020c02406bd84639694020eaa4e981c3f2b894ef5ae1cc30631453d56798059de700247304402205d514aebebe7e44c251dc83345a8967470feec8aaa3716a04d3d4f62c4673cf1022059936732dbeb370eb29324b3c243077ed5b43efff583537500dc128a1a7926630121029dca8830dcf558fb6954c27af575496c04f15f7d18b87fc1d102ecad7257170c02473044022004e2ae64c12b02cfdcef26336bf17a8ee74476b60865547ccba46bb5b99460f302202ba97ba8f1fe25bdd3660e5af71130585480642c9961bda86ad9f59f374c9c2c012102da3445ae3f973e26d080cc835fd337fdbf75f30886805e19ec634048aeeaf21700000000
+    # hash     "e6d28b98fe2fe2f8e781148be8fc57df99df643734dd23284a3acf40efdaadac"
+
+    #テスト マルチシグに署名、マルチシグ宛にに送り返す。
+    malti_resend_amount   = deposit_amount * 2 - tx_fee * 2
+    malti_resend_tx = segwit_send_bitcoin(alice_tx.hash, deposit_amount * 2 - tx_fee *2 , p2wsh_script, mode = 'broadcast', segwit = true)
+
+
+  end
+
+=begin
+     #3 クライアント側 払い戻しトランザクションの作成、署名なし
     refund_tx = Bitcoin::Protocol::Tx.new
 
     opening_tx_vout  = 0
-    block_height  = api.provider.getinfo['blocks'].to_i
+    block_height  = oa_api.provider.getinfo['blocks'].to_i
     locktime      = block_height + 10
 
     refund_tx_in = Bitcoin::Protocol::TxIn.from_hex_hash(opening_tx.hash, opening_tx_vout)
@@ -153,11 +115,11 @@ api = OpenAssets::Api.new({:network => 'testnet',
     end
 
     #6 オープニングトランザクションのブロードキャスト
-    api.provider.send_transaction(opening_tx.to_payload.bth)
+    oa_api.provider.send_transaction(opening_tx.to_payload.bth)
     # e5edce397b79186942284886936a3b17ddf5e0da6bec8a90cef9941f8a049c91
 
     #6' 払い戻し用トランザクションのブロードキャスト
-    api.provider.send_transaction(refund_tx.to_payload.bth)
+    oa_api.provider.send_transaction(refund_tx.to_payload.bth)
     # refund_tx.hash = "aa79431992f5532f430d12beb935a0a3fdde5f0581304f25b6c681303379da79"
 
     #7 コミットメントトランザクションの作成
@@ -166,7 +128,6 @@ api = OpenAssets::Api.new({:network => 'testnet',
     amount_to_server    = 30000000
     amount_to_client    = deposit_amount - amount_to_server - tx_fee
 
-    commitment_tx_in = Bitcoin::Protocol::TxIn.from_hex_hash(opening_tx.hash, opening_tx_vout)
     commitment_tx.add_in(refund_tx_in)
 
     commitment_tx_out_1 = Bitcoin::Protocol::TxOut.value_to_address(amount_to_server, server_key.addr)
@@ -194,9 +155,57 @@ api = OpenAssets::Api.new({:network => 'testnet',
     end
 
     #9 コミットメントトランザクションのブロードキャスト
-    api.provider.send_transaction(commitment_tx.to_payload.bth)
+    oa_api.provider.send_transaction(commitment_tx.to_payload.bth)
     # "a7e6684476157df313c9f10f8a06507683ca501b17718e52803f1cca49f27277"
+=end #単方向
 
+  def segwit_send_bitcoin(input_tx_hash, amount, to, mode = 'broadcast', segwit)
+    # p2pkh宛Txの input
+    tx_in  = Bitcoin::Protocol::TxIn.from_hex_hash(input_tx_hash, tx_vout = 0)
+
+    # p2Wpkh nested in p2sh 宛の output
+    tx_out = Bitcoin::Protocol::TxOut.new(amount, to_p2wpkh_script(to))
+
+    # tx に投入
+    tx  = Bitcoin::Protocol::Tx.new
+    tx.add_in(tx_in)
+    tx.add_out(tx_out)
+
+    # tx に署名
+    segwit_process_transaction(tx, mode, segwit = true)
+  end
+
+
+  def segwit_process_transaction(tx, mode, segwit)
+    if mode == 'broadcast' || mode == 'signed'
+      signed_tx = oa_api.provider.sign_transaction(tx.to_payload.bth)
+      if mode == 'broadcast'
+        if segwit
+          puts oa_api.provider.send_transaction(signed_tx.to_witness_payload.bth)
+        else
+          puts oa_api.provider.send_transaction(signed_tx.to_payload.bth)
+        end
+      end
+      signed_tx
+    else
+      tx
+    end
+  end
+
+  def to_p2wsh_multisig_script(*args)
+    witness_program = Bitcoin::Script.to_multisig_script(*args)
+    p2wsh_script = to_p2wsh_script(Bitcoin.sha256(witness_program.hth))
+    return p2wsh_script, witness_program
+  end
+
+  def to_p2wpkh_script(p2wpkh)
+    # 0 length 32bytes-hash
+    [ ["00", "14", p2wpkh ].join ].pack("H*")
+  end
+
+  def to_p2wsh_script(p2wsh)
+    # 0 length 32bytes-hash
+    [ ["00", "20", p2wsh ].join ].pack("H*")
   end
 
 end
