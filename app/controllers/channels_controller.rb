@@ -6,175 +6,122 @@ class ChannelsController < ApplicationController
 
   def index
 
-    #1 鍵の準備
-
-    alice_addr  = oa_api.provider.getnewaddress('Alice')
-    bob_addr    = oa_api.provider.getnewaddress('Bob')
+    #1 鍵、アドレス、コインの準備
+    alice_addr  = "mwkzBcRWNbKYG99JApFxfXWM28qNYrfCSS" #oa_api.provider.getnewaddress('Alice')
+    bob_addr    = "mv4CoVBNarrehpzhpkF7MtpHuz3UGhMFKG" #oa_api.provider.getnewaddress('Bob')
 
     alice_key   = Bitcoin::Key.from_base58(oa_api.provider.dumpprivkey(alice_addr))
     bob_key     = Bitcoin::Key.from_base58(oa_api.provider.dumpprivkey(bob_addr))
 
     alice_20bytes_hash = hash160(alice_key.pub)
     bob_20bytes_hash = hash160(bob_key.pub)
-    # alice_witness_addr  = oa_api.provider.addwitnessaddress(alice_key.addr)
-    # bob_witness_addr    = oa_api.provider.addwitnessaddress(bob_key.addr)
 
     tx_fee          = 100000
-    deposit_amount  = 2499900000
+    deposit_amount  = 4999900000
 
     #コインベース
-    input_tx_hash_alice  = "eaebd066a1354039022a21c476cb0dbc131d0dce20a759c35dc9433097d371ff"
-    input_tx_hash_bob = "a8922146407b9a7b940db52502843b3d59499bd959830e42dd5a5b8a3c0f51ff"
-    #input_tx_hash_alice = "579e6e73bbb0f3e8cb7679f08814a29a1aaee9ca63e921187c538875fa0bd8fe"
-    #input_tx_hash_bob = "b92d39f50788e099659b3902563d0e70110abc0b8fe41adc2695437477bc5dfe"
-    #input_tx_hash_alice = "2a1bf38dd6ce69d77e7f5f01659a60fb3d754d0e218ca883e419946a2cdb43fb"
-    #input_tx_hash_bob = "f2a20a35d074244bf6412028ab0cfaff30ff5ef4268f04d10f708bbc821a65f5"
+    #input_tx_hash_alice   = "237887d8c894a62b3537db5e1b67361e28753d6d45dbae1ef76acab68f441b4a"
+    #input_tx_hash_bob     = "ab80159a49bcecfe0ac2caf09bfef1a32c5b68d1ba55d1cc96d12344e9615c50"
+    #input_tx_hash_alice  = "1a9fb3a200edd9699e44843c6b03f8fd01a157d69a912e1e7885f20c9f7f1e6d"
+    #input_tx_hash_bob    = "f72aef46372161a484d2ac9332e05aa748ec6e5bd30a29a10b700a57a38d346f"
+    #input_tx_hash_alice  = "fe85dbd4c62a188b17129f4684fe41cf5264586ddb98ff85a6f0c55673e8666f"
+    #input_tx_hash_bob    = "009f9a68db71f4d6431ecef76c06aa07a383a105cec61d56e3d4b90978c29a71"
+    #input_tx_hash_alice  = "53f4983faaedeccd9a78183e6ae279a127c07c0a25ae2bc3c5d7f3a0cd80c272"
+    #input_tx_hash_bob    = "ca759ae47340192a916f3a8a7792382c0e5b39c8365f4ea71f7794d4dea96e75"
+    input_tx_hash_alice  = "93ac37f2b335a92163491953516ca666417180112f23b46cb03dc38ee015da77"
+    input_tx_hash_bob    = "0333e9bda6d917d3d271dca1dfc9a12b098bbdf8c8560a901807ab780f4df57d"
+    #input_tx_hash_alice  = "68c160ca079a25011b57a4c94d100eede19f8e90d8fcee03268a0add4a4fd77e"
+    #input_tx_hash_bob    = "2e64d17b58eb0e667451c9a1f4372a516043b0b42f4b18c88222c2feb43d2d7f"
+    #input_tx_hash_alice  = "c7449055f4f85c944cf47297dcef86f4b8fff22c968456ac787169f035281581"
+    #input_tx_hash_bob    = "8f0ca910f5af2b4f06387354ce6dd999a3df25196ef1553f3ffcce2f2cb38081"
+    #input_tx_hash_alice  = "d0e917319f9bf6f42685fadb1832a24471918a18e5151223b572cac5ceb1b482"
+    #input_tx_hash_bob    = "c1a5035efafd68a337adeacbe4de587b1337dcf9a1a4a3c4abce67ef2a7ce984"
+    #input_tx_hash_alice  = "c59c0e026eb1501364f36153b2cadbca6ea14ea67a50c7cc4eac98de16d68386"
+    #input_tx_hash_bob    = "e950cdd92abeae155ba979b6a020466ec68f610a57e9f149bce28d6eb00a4188"
+    #input_tx_hash_alice  = "c6ef2f682673ce8ebb24152c8b86aea7f8adf41e61dbeca828222cb3ee13238b"
+    #input_tx_hash_bob    = "2d1a25be7936a4076168cb20120bdc4f1df6fe3de04e44131974f6f5fa7fb28c"
+    #input_tx_hash_alice  = "6630c545ab48c33be7c884a3415e365972d5aabde907aec1a990fa9a605c0c8d"
+    #input_tx_hash_bob    = "58c87e5d0a478065a0c38874027836104963330ecefa3c26a27c96b1ec3bab8f"
 
     #2 オープニングトランザクションの作成
+    #alice_to  = Bitcoin::Script.to_hash160_script(hash160(alice_key.pub))
+    #bob_to    = Bitcoin::Script.to_hash160_script(hash160(alice_key.pub))
+    alice_to = to_p2wpkh_script(alice_20bytes_hash)
+    bob_to   = to_p2wpkh_script(bob_20bytes_hash)
 
-    alice_tx = segwit_send_bitcoin(input_tx_hash_alice, deposit_amount, alice_20bytes_hash, mode = 'broadcast', segwit = false)
-    bob_tx   = segwit_send_bitcoin(input_tx_hash_bob, deposit_amount, bob_20bytes_hash, mode = 'broadcast', segwit = false)
+    alice_tx = segwit_send_bitcoin(input_tx_hash_alice, deposit_amount, alice_to, mode = 'broadcast', segwit = false)
+    bob_tx   = segwit_send_bitcoin(input_tx_hash_bob, deposit_amount, bob_to, mode = 'broadcast', segwit = false)
 
     oa_api.provider.generate(1)
 
-    #テスト 自分に送り返す。
+
+    ###TEST aliceのUTXOをaliceに送り返す。
     # resend_amount   = deposit_amount - 100000
     # alice_resend_tx = segwit_send_bitcoin(alice_tx.hash, resend_amount, alice_20bytes_hash, mode = 'broadcast', segwit = true)
+    ###
 
-    #2-2-2 オープニングトランザクションの作成
-    # input に alice, bob のトランザクションを指定
-    alice_tx_in = Bitcoin::Protocol::TxIn.from_hex_hash(alice_tx.hash, tx_vout = 0)
-    bob_tx_in   = Bitcoin::Protocol::TxIn.from_hex_hash(bob_tx.hash, tx_vout = 0)
-
-    # output に p2wsh 宛の outputを指定
+    #p2sh_script, redeem_script =  Bitcoin::Script.to_p2sh_multisig_script(2, alice_key.pub, bob_key.pub)
     p2wsh_script, witness_program =  to_p2wsh_multisig_script(2, alice_key.pub, bob_key.pub)
-    opening_tx_out = Bitcoin::Protocol::TxOut.new(deposit_amount * 2 - tx_fee, p2wsh_script)
 
-    # tx に投入
-    opening_tx  = Bitcoin::Protocol::Tx.new
-    opening_tx.add_in(alice_tx_in)
-    opening_tx.add_in(bob_tx_in)
-    opening_tx.add_out(opening_tx_out)
 
-    p '------- opening tx ------- '
+    amount = deposit_amount * 2 - tx_fee
+    #opening_tx = send_opening_tx(alice_tx.hash, bob_tx.hash, amount, p2sh_script, mode = 'broadcast', segwit = false)
+    opening_tx = send_opening_tx(alice_tx.hash, bob_tx.hash, amount, p2wsh_script, mode = 'broadcast', segwit = true)
+
+    p '--- opening tx ---'
     p opening_tx
-    p opening_tx.hash
-    p opening_tx.to_payload
-    p opening_tx.to_payload.bth
-    p '------- opening tx ------- '
 
-    # tx に署名
-    segwit_process_transaction(opening_tx, mode = 'broadcast', segwit = true)
-
-    p stop
 
     # 01000000000102295dafd9d3e20a0bbc06a3f1d172961c83924df409854639fea37c0a1f934d730000000000ffffffff7d6d0920bad12db99e457b0e25a26fb5cf5ceef3c439aa4fdbfb3296aee403690000000000ffffffff01205e012a01000000220020c02406bd84639694020eaa4e981c3f2b894ef5ae1cc30631453d56798059de700247304402205d514aebebe7e44c251dc83345a8967470feec8aaa3716a04d3d4f62c4673cf1022059936732dbeb370eb29324b3c243077ed5b43efff583537500dc128a1a7926630121029dca8830dcf558fb6954c27af575496c04f15f7d18b87fc1d102ecad7257170c02473044022004e2ae64c12b02cfdcef26336bf17a8ee74476b60865547ccba46bb5b99460f302202ba97ba8f1fe25bdd3660e5af71130585480642c9961bda86ad9f59f374c9c2c012102da3445ae3f973e26d080cc835fd337fdbf75f30886805e19ec634048aeeaf21700000000
     # hash     "e6d28b98fe2fe2f8e781148be8fc57df99df643734dd23284a3acf40efdaadac"
 
-    #テスト マルチシグに署名、マルチシグ宛にに送り返す。
+    p stop
+
+    #テスト マルチシグに署名、マルチシグ宛に送り返す。
     malti_resend_amount   = deposit_amount * 2 - tx_fee * 2
-    malti_resend_tx = segwit_send_bitcoin(alice_tx.hash, deposit_amount * 2 - tx_fee *2 , p2wsh_script, mode = 'broadcast', segwit = true)
+    malti_resend_tx = segwit_send_multisig_bitcoin(opening_tx.hash, malti_resend_amount, p2wsh_script, mode = 'broadcast', segwit = true, alice_key, bob_key, witness_program)
+
+
+    #2-2-2 オープニングトランザクションの作成
+    # input に alice, bob のトランザクションを指定
 
 
   end
 
-=begin
-     #3 クライアント側 払い戻しトランザクションの作成、署名なし
-    refund_tx = Bitcoin::Protocol::Tx.new
 
-    opening_tx_vout  = 0
-    block_height  = oa_api.provider.getinfo['blocks'].to_i
-    locktime      = block_height + 10
 
-    refund_tx_in = Bitcoin::Protocol::TxIn.from_hex_hash(opening_tx.hash, opening_tx_vout)
-    refund_tx.add_in(refund_tx_in)
-
-    refund_tx_out = Bitcoin::Protocol::TxOut.value_to_address(amount - tx_fee, client_key.addr)
-    refund_tx.add_out(refund_tx_out)
-
-    refund_tx.in[0].sequence = [1234].pack("V")
-    refund_tx.lock_time = locktime
-
-    #4 サーバ側 払い戻し用トランザクション署名
-    sig_hash = refund_tx.signature_hash_for_input(0, redeem_script)
-    script_sig = Bitcoin::Script.to_p2sh_multisig_script_sig(redeem_script)
-
-    script_sig_1 = Bitcoin::Script.add_sig_to_multisig_script_sig(server_key.sign(sig_hash), script_sig)
-    refund_tx.in[0].script_sig = script_sig_1
-
-    #5 クライアント側 署名の検証, 署名を追加, 並び替え
-    refund_tx_copy = refund_tx
-
-    script_sig_2 = Bitcoin::Script.add_sig_to_multisig_script_sig(client_key.sign(sig_hash), script_sig_1)
-    script_sig_3 = Bitcoin::Script.sort_p2sh_multisig_signatures(script_sig_2, sig_hash)
-    refund_tx_copy.in[0].script_sig = script_sig_3
-    refund_tx_copy.verify_input_signature(0, opening_tx)
-
-    if refund_tx_copy.verify_input_signature(0, opening_tx)
-      refund_tx = refund_tx_copy
-    end
-
-    #6 オープニングトランザクションのブロードキャスト
-    oa_api.provider.send_transaction(opening_tx.to_payload.bth)
-    # e5edce397b79186942284886936a3b17ddf5e0da6bec8a90cef9941f8a049c91
-
-    #6' 払い戻し用トランザクションのブロードキャスト
-    oa_api.provider.send_transaction(refund_tx.to_payload.bth)
-    # refund_tx.hash = "aa79431992f5532f430d12beb935a0a3fdde5f0581304f25b6c681303379da79"
-
-    #7 コミットメントトランザクションの作成
-    commitment_tx = Bitcoin::Protocol::Tx.new
-
-    amount_to_server    = 30000000
-    amount_to_client    = deposit_amount - amount_to_server - tx_fee
-
-    commitment_tx.add_in(refund_tx_in)
-
-    commitment_tx_out_1 = Bitcoin::Protocol::TxOut.value_to_address(amount_to_server, server_key.addr)
-    commitment_tx_out_2 = Bitcoin::Protocol::TxOut.value_to_address(amount_to_client, client_key.addr)
-    commitment_tx.add_out(commitment_tx_out_1)
-    commitment_tx.add_out(commitment_tx_out_2)
-
-    #クライアント側 コミットメントトランザクションに署名
-    commitment_sig_hash = commitment_tx.signature_hash_for_input(0, redeem_script)
-    commitment_script_sig = Bitcoin::Script.to_p2sh_multisig_script_sig(redeem_script)
-
-    script_sig_A = Bitcoin::Script.add_sig_to_multisig_script_sig(client_key.sign(commitment_sig_hash), commitment_script_sig)
-    commitment_tx.in[0].script_sig = script_sig_A
-
-    #8 サーバ側 金額と署名を検証、署名を追加
-    commitment_tx_copy = commitment_tx
-
-    script_sig_B = Bitcoin::Script.add_sig_to_multisig_script_sig(server_key.sign(commitment_sig_hash), script_sig_A)
-    script_sig_C = Bitcoin::Script.sort_p2sh_multisig_signatures(script_sig_B, commitment_sig_hash)
-    commitment_tx_copy.in[0].script_sig = script_sig_C
-    commitment_tx_copy.verify_input_signature(0, opening_tx)
-
-    if commitment_tx_copy.verify_input_signature(0, opening_tx)
-      commitment_tx = commitment_tx_copy
-    end
-
-    #9 コミットメントトランザクションのブロードキャスト
-    oa_api.provider.send_transaction(commitment_tx.to_payload.bth)
-    # "a7e6684476157df313c9f10f8a06507683ca501b17718e52803f1cca49f27277"
-=end #単方向
 
   def segwit_send_bitcoin(input_tx_hash, amount, to, mode = 'broadcast', segwit)
-    # p2pkh宛Txの input
     tx_in  = Bitcoin::Protocol::TxIn.from_hex_hash(input_tx_hash, tx_vout = 0)
+    tx_out = Bitcoin::Protocol::TxOut.new(amount, to)
 
-    # p2Wpkh nested in p2sh 宛の output
-    tx_out = Bitcoin::Protocol::TxOut.new(amount, to_p2wpkh_script(to))
-
-    # tx に投入
     tx  = Bitcoin::Protocol::Tx.new
     tx.add_in(tx_in)
     tx.add_out(tx_out)
 
-    # tx に署名
-    segwit_process_transaction(tx, mode, segwit = true)
+    p '--- before sign tx ---'
+    p tx
+    p tx.hash
+    p tx.to_payload.bth
+    p '--- before sign tx ---'
+
+    segwit_process_transaction(tx, mode, segwit)
+
   end
 
+  def send_opening_tx(input1_tx_hash, input2_tx_hash, amount, to, mode, segwit)
+    tx_in_1  = Bitcoin::Protocol::TxIn.from_hex_hash(input1_tx_hash, tx_vout = 0)
+    tx_in_2  = Bitcoin::Protocol::TxIn.from_hex_hash(input2_tx_hash, tx_vout = 0)
+
+    tx_out = Bitcoin::Protocol::TxOut.new(amount, to)
+
+    opening_tx  = Bitcoin::Protocol::Tx.new
+    opening_tx.add_in(tx_in_1)
+    opening_tx.add_in(tx_in_2)
+    opening_tx.add_out(tx_out)
+
+    segwit_process_transaction(opening_tx, mode, segwit)
+  end
 
   def segwit_process_transaction(tx, mode, segwit)
     if mode == 'broadcast' || mode == 'signed'
@@ -190,6 +137,48 @@ class ChannelsController < ApplicationController
     else
       tx
     end
+  end
+
+  def segwit_send_multisig_bitcoin(input_tx_hash, amount, to, mode = 'broadcast', segwit, alice_key, bob_key, witness_program)
+    tx_in  = Bitcoin::Protocol::TxIn.from_hex_hash(input_tx_hash, tx_vout = 0)
+    tx_out = Bitcoin::Protocol::TxOut.new(amount, to)
+
+    tx  = Bitcoin::Protocol::Tx.new
+    tx.add_in(tx_in)
+    tx.add_out(tx_out)
+
+    p '--- before sign commitment tx ---'
+    p tx
+    p tx.hash
+    p tx.to_payload.bth
+    p '--- before sign commitment tx ---'
+
+    #署名 #ここのミス。 マルチシグに署名ができない。
+    sig_hash = tx.signature_hash_for_input(0, witness_program)
+    witness = Bitcoin::Script.add_sig_to_multisig_script_sig(alice_key.sign(sig_hash), witness)
+    witness = Bitcoin::Script.add_sig_to_multisig_script_sig(bob_key.sign(sig_hash), witness)
+    witness = Bitcoin::Script.to_p2sh_multisig_script_sig(witness_program)
+
+
+
+
+    tx.witness.add_witness(witness)
+
+    p '--- after sign commitment tx ---'
+    p tx
+    p tx.hash
+    p '--- after sign commitment tx ---'
+
+    if mode == 'broadcast'
+      if segwit
+        puts oa_api.provider.send_transaction(tx.to_witness_payload.bth)
+      else
+        puts oa_api.provider.send_transaction(tx.to_payload.bth)
+      end
+    end
+
+    return tx
+
   end
 
   def to_p2wsh_multisig_script(*args)
